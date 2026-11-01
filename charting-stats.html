@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Athletics — Charting Stats</title>
+<link rel="stylesheet" href="css/charting-stats.css" />
+<link rel="stylesheet" href="css/charting-stats-spray.css" />
+</head>
+<body>
+<script src="js/auth-guard.js"></script>
+<header>
+  <h1>CHARTING STATS</h1>
+  <span class="sub" id="event-note"></span>
+  <div class="spacer"></div>
+  <a class="navlink home" href="charting.html">← Charting</a>
+  <a class="navlink" href="profile_manager.html">Profiles</a>
+  <a class="navlink" href="javascript:void(0)" onclick="window.athLogout&&window.athLogout()">Log out</a>
+</header>
+
+<div class="wrap">
+  <div class="stab-bar">
+    <button class="stab active" data-stab="hbox">Hitter Stats</button>
+    <button class="stab" data-stab="pbox">Pitcher Stats</button>
+    <button class="stab" data-stab="stats">Hitter Percentiles</button>
+    <button class="stab" data-stab="pstats">Pitcher Percentiles</button>
+    <button class="stab" data-stab="spray">Hitter Spray Chart &amp; Heatmaps</button>
+    <button class="stab" data-stab="pviz">Pitcher Visualization</button>
+  </div>
+
+  <div id="stab-hbox" class="stab-panel active">
+    <div class="toolbar">
+      <div class="search">
+        <span style="color:var(--muted)">🔍</span>
+        <input type="text" id="hbox-search" placeholder="Search by hitter name…" autocomplete="off" />
+      </div>
+      <span class="count-note" id="hbox-count"></span>
+      <button id="hbox-refresh">Refresh</button>
+    </div>
+    <div id="hbox-root"></div>
+  </div>
+
+  <div id="stab-pbox" class="stab-panel">
+    <div class="toolbar">
+      <div class="search">
+        <span style="color:var(--muted)">🔍</span>
+        <input type="text" id="pbox-search" placeholder="Search by pitcher name…" autocomplete="off" />
+      </div>
+      <span class="count-note" id="pbox-count"></span>
+      <button id="pbox-refresh">Refresh</button>
+    </div>
+    <div id="pbox-root"></div>
+  </div>
+
+  <div id="stab-stats" class="stab-panel">
+    <div class="toolbar">
+      <div class="search">
+        <span style="color:var(--muted)">🔍</span>
+        <input type="text" id="search" placeholder="Search by hitter name…" autocomplete="off" />
+      </div>
+      <span class="count-note" id="count-note"></span>
+      <button class="ghost" id="expand-all">Expand All</button>
+      <button class="ghost" id="collapse-all">Collapse All</button>
+      <button id="refresh">Refresh</button>
+    </div>
+    <div id="stats-root"></div>
+  </div>
+
+  <div id="stab-pstats" class="stab-panel">
+    <div class="toolbar">
+      <div class="search">
+        <span style="color:var(--muted)">🔍</span>
+        <input type="text" id="psearch" placeholder="Search by pitcher name…" autocomplete="off" />
+      </div>
+      <span class="count-note" id="pcount-note"></span>
+      <button class="ghost" id="pexpand-all">Expand All</button>
+      <button class="ghost" id="pcollapse-all">Collapse All</button>
+      <button id="prefresh">Refresh</button>
+    </div>
+    <div id="pstats-root"></div>
+  </div>
+
+  <div id="stab-spray" class="stab-panel">
+    <div class="spray-controls">
+      <div class="search" style="flex:0 0 auto">
+        <span style="color:var(--muted)">👤</span>
+        <select id="spray-player"></select>
+      </div>
+      <div class="search" style="flex:0 0 auto">
+        <span style="color:var(--muted)">⚾</span>
+        <select id="spray-vs"></select>
+      </div>
+      <div class="seg" id="spray-mode">
+        <button class="active" data-mode="result">Play Result</button>
+        <button data-mode="traj">Hit Trajectory</button>
+      </div>
+      <span class="count-note" id="spray-note"></span>
+    </div>
+    <div class="spray-grid">
+      <div class="viz-card">
+        <h3>Spray Chart</h3>
+        <div id="spray-field" class="spray-field"></div>
+        <div id="spray-legend" class="viz-legend"></div>
+      </div>
+      <div class="viz-card">
+        <h3>Strike Zone Heat Map</h3>
+        <div class="heat-wrap"><canvas id="heat-canvas" width="300" height="360"></canvas></div>
+        <div id="heat-legend" class="viz-legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="stab-pviz" class="stab-panel">
+    <div class="spray-controls">
+      <div class="search" style="flex:0 0 auto">
+        <span style="color:var(--muted)">👤</span>
+        <select id="pviz-player"></select>
+      </div>
+      <div class="search" style="flex:0 0 auto">
+        <span style="color:var(--muted)">🏏</span>
+        <select id="pviz-vs"></select>
+      </div>
+      <div class="seg" id="pviz-mode">
+        <button class="active" data-mode="result">Pitch Result</button>
+        <button data-mode="type">Pitch Type</button>
+      </div>
+      <span class="count-note" id="pviz-note"></span>
+    </div>
+    <div class="spray-grid">
+      <div class="viz-card">
+        <h3>Strike Zone</h3>
+        <div id="pviz-zone" class="pviz-zone"></div>
+        <div id="pviz-legend" class="viz-legend"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/charting-stats-db.js"></script>
+<script src="js/charting-stats.js"></script>
+<script src="js/charting-stats-spray.js"></script>
+<script src="js/charting-stats-tables.js"></script>
+</body>
+</html>

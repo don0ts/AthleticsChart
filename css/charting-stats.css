@@ -1,0 +1,102 @@
+:root{--bg:#03160f;--panel:#08301f;--panel2:#0d3d2b;--line:#1d4b3a;--txt:#e9f3ee;--muted:#9db8a7;--accent:#EFB21E;--accent2:#c8951a;--chip:#0a2b20;--seasonbg:rgba(239,178,30,.12);--datebg:rgba(157,184,167,.07);}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#02100a,#03160f);color:var(--txt);min-height:100vh}
+header{background:rgba(3,22,15,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:30}
+header h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.3px}
+header .sub{color:var(--muted);font-size:13px}
+.spacer{flex:1}
+.wrap{max-width:1320px;margin:0 auto;padding:22px 20px 60px}
+.toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;background:#06231a;border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.search input{flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:14px}
+.count-note{color:var(--muted);font-size:13px}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--txt);padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;transition:.15s}
+button:hover{border-color:var(--accent);color:#fff}
+button.ghost{background:transparent}
+.navlink{cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--txt);padding:9px 14px;border-radius:9px;font-size:13px;font-weight:600;transition:.15s;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.navlink:hover{border-color:var(--accent);color:#fff}
+.navlink.home{background:linear-gradient(90deg,var(--accent2),var(--accent));border:none;color:#022}
+.navlink.home:hover{filter:brightness(1.08)}
+.status{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:40px 18px;text-align:center;color:var(--muted);font-size:14px}
+.player-block{margin-bottom:16px;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.player-head{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line);background-image:linear-gradient(90deg,rgba(239,178,30,.08),transparent)}
+.player-head .nm{font-size:14px;font-weight:700}
+.player-head .badge{background:rgba(251,146,60,.15);color:#fb923c;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px}
+.player-head .meta{color:var(--muted);font-size:12px}
+.tablewrap{overflow-x:auto}
+table.stats{width:100%;border-collapse:collapse;min-width:900px}
+table.stats thead th{text-align:center;font-size:11px;letter-spacing:.3px;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);background:var(--panel);white-space:nowrap;position:sticky;top:0;z-index:2}
+table.stats thead tr.grp th{border-bottom:1px solid var(--line);font-size:10px;color:var(--accent);background:var(--panel)}
+table.stats thead th.left{text-align:left}
+table.stats tbody td{padding:8px 10px;border-bottom:1px solid var(--line);font-size:13px;text-align:center;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.stats tbody td.left{text-align:left}
+table.stats tbody tr.season td{background:var(--seasonbg);font-weight:700}
+table.stats tbody tr.date td{background:var(--datebg)}
+table.stats tbody tr:hover td{background:rgba(239,178,30,.05)}
+.grp-swing{color:#EFB21E!important}
+.grp-traj{color:#4ade80!important}
+.grp-contact{color:#facc15!important}
+.grp-pa{color:#fb923c!important}
+.grp-usage{color:#EFB21E!important}
+.grp-zone{color:#4ade80!important}
+.grp-sm{color:#facc15!important}
+.grp-chase{color:#facc15!important}
+.grp-whiff{color:#f472b6!important}
+.grp-izw{color:#c084fc!important}
+.arrow-btn{background:transparent;border:1px solid var(--line);color:var(--muted);width:26px;height:26px;border-radius:7px;font-size:11px;padding:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:transform .15s}
+.arrow-btn.open{transform:rotate(90deg);color:var(--accent);border-color:var(--accent)}
+tr.detail td{padding:0!important;background:#06231a}
+.detail-wrap{padding:8px 10px;overflow-x:auto}
+table.detail{width:100%;min-width:100%;border-collapse:collapse;table-layout:auto}
+.detail-wrap table.detail th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.2px;color:var(--muted);padding:4px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+.detail-wrap table.detail td{text-align:left;font-size:12px;padding:4px 9px;border-bottom:1px solid rgba(51,65,85,.6);white-space:nowrap}
+.detail-wrap table.detail td.left,.detail-wrap table.detail th.left{text-align:left}
+.detail-wrap table.detail td.c,.detail-wrap table.detail th.c{text-align:center}
+.chk{color:#4ade80;font-weight:700}
+.dim{color:#475569}
+.player-head .badge.pbadge{background:rgba(239,178,30,.15);color:var(--accent)}
+/* Percentile tables: tighter, better-distributed cells so the wide grids read
+   cleanly instead of feeling oversized. Basic counting-stat tables keep their
+   own sizing via .basic-stats. */
+table.stats:not(.basic-stats) thead th{padding:5px 8px;font-size:10px}
+table.stats:not(.basic-stats) thead tr.grp th{font-size:9px}
+table.stats:not(.basic-stats) tbody td{padding:5px 8px;font-size:12px}
+/* R/L "Side" descriptor beside a faced hitter/pitcher name. */
+.side-tag{display:inline-block;margin-left:5px;padding:0 5px;border-radius:5px;font-size:10px;font-weight:700;color:var(--accent);background:rgba(239,178,30,.15);vertical-align:middle}
+/* ---- subtle category dividers ---- */
+table.stats thead tr:not(.grp) th:nth-child(4),
+table.stats thead tr:not(.grp) th:nth-child(7),
+table.stats thead tr:not(.grp) th:nth-child(11),
+table.stats thead tr:not(.grp) th:nth-child(12),
+table.stats tbody td:nth-child(4),
+table.stats tbody td:nth-child(7),
+table.stats tbody td:nth-child(11),
+table.stats tbody td:nth-child(12){border-left:1px solid rgba(148,163,184,.22)}
+table.pstats{min-width:1480px}
+table.pstats thead tr:not(.grp) th:nth-child(4),
+table.pstats thead tr:not(.grp) th:nth-child(7),
+table.pstats thead tr:not(.grp) th:nth-child(11),
+table.pstats thead tr:not(.grp) th:nth-child(15),
+table.pstats thead tr:not(.grp) th:nth-child(19),
+table.pstats thead tr:not(.grp) th:nth-child(23),
+table.pstats tbody td:nth-child(4),
+table.pstats tbody td:nth-child(7),
+table.pstats tbody td:nth-child(11),
+table.pstats tbody td:nth-child(15),
+table.pstats tbody td:nth-child(19),
+table.pstats tbody td:nth-child(23){border-left:1px solid rgba(148,163,184,.22)}
+table.stats thead tr.grp th+th,
+table.pstats thead tr.grp th+th{border-left:1px solid rgba(148,163,184,.22)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#22c55e;color:#052e12;padding:11px 20px;border-radius:10px;font-weight:700;box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.25s;z-index:60}
+.toast.show{opacity:1}
+
+/* Hitter Stats / Pitcher Stats counting-stat tables */
+table.stats.basic-stats{min-width:760px}
+table.stats.basic-stats thead th,
+table.stats.basic-stats tbody td{border-left:none}
+table.stats.basic-stats thead th.left,
+table.stats.basic-stats tbody td.left{text-align:left}
+.stats th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+.stats th.sortable:hover{color:var(--accent)}
+.stats th.sorted{color:#eaf2ff}
+table.stats.basic-stats tbody tr:hover td{background:rgba(239,178,30,.06)}

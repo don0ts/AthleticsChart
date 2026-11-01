@@ -1,0 +1,35 @@
+:root{
+  --as-green:#003831;
+  --as-green-2:#1a4f42;
+  --as-gold:#EFB21E;
+  --as-ink:#04150f;
+  --line:rgba(239,178,30,.18);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  background:radial-gradient(1200px 600px at 50% -10%,#0b3a2d,transparent),linear-gradient(180deg,var(--as-ink),#02100a);
+  color:#e9f3ee;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-wrap{width:100%;max-width:400px}
+.login-card{background:linear-gradient(180deg,rgba(0,56,49,.65),rgba(4,21,15,.9));
+  border:1px solid var(--line);border-radius:18px;padding:28px 24px;
+  box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:22px}
+.brand .badge{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  background:var(--as-green);color:var(--as-gold);font-weight:800;font-size:20px;letter-spacing:.5px;
+  border:2px solid var(--as-gold)}
+.brand h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.3px}
+.brand .sub{margin:2px 0 0;font-size:13px;color:#9fc3b4}
+.field{display:block;margin-bottom:14px}
+.field span{display:block;font-size:12px;font-weight:700;color:var(--as-gold);margin:0 0 6px 2px;letter-spacing:.3px}
+.field input{width:100%;background:#07251c;border:1px solid rgba(239,178,30,.25);border-radius:10px;
+  color:#eaf5ef;padding:11px 12px;font-size:15px;outline:none}
+.field input:focus{border-color:var(--as-gold);box-shadow:0 0 0 2px rgba(239,178,30,.18)}
+.btn{width:100%;cursor:pointer;border:0;border-radius:11px;padding:12px 14px;font-size:15px;font-weight:800;letter-spacing:.3px;transition:.15s}
+.btn.primary{background:var(--as-gold);color:#20170a}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.primary:disabled{opacity:.6;cursor:default}
+.err{display:none;color:#ffb4a8;font-size:13px;margin:2px 2px 12px;font-weight:600}
+.status{margin-top:12px;text-align:center;font-size:12px;color:#8fb5a6}
+.status.ok{color:#67d6a7}
+.status.warn{color:var(--as-gold)}
