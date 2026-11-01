@@ -22,8 +22,17 @@ const firebaseConfig = {
 };
 const COLLECTION = "AthleticsPlayers";
 let _db = null;
-try { if (window.firebase && firebase.initializeApp){ firebase.initializeApp(firebaseConfig); _db = firebase.firestore(); } }
-catch(err){ console.error('Firebase init failed', err); }
+try {
+  if (window.firebase && firebase.initializeApp){
+    // Guard against a double initializeApp (throws "app already exists", which
+    // previously left _db null and the whole page stuck “Offline”).
+    if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    _db = firebase.firestore();
+  } else {
+    console.error('Firebase SDK not loaded — charting page cannot reach the database');
+  }
+}
+catch(err){ console.error('Firebase init failed', err); _db = null; }
 
 // derive the display name from a player document (search is by player_name)
 function playerDocName(data, id){
@@ -51,9 +60,11 @@ function loadPlayerCache(){
   if (_playerCacheReady || _playerCacheError) return Promise.resolve(_playerCache);
   if (_playerCacheLoading) return _playerCacheLoading;
   if (!_db){ _playerCacheError = true; _playerCache = []; return Promise.resolve(_playerCache); }
-  // first-call promise resolves when the first snapshot arrives
+  // first-call promise resolves when the first snapshot arrives; fail over to
+  // an empty cache if the players listener never produces one.
   _playerCacheLoading = new Promise(res => { _playerCacheResolve = res; });
   startPlayerCacheListener();
+  setTimeout(function(){ if (_playerCacheResolve){ _playerCacheError = true; _playerCacheResolve(_playerCache); _playerCacheResolve = null; } }, 12000);
   return _playerCacheLoading;
 }
 function startPlayerCacheListener(){
@@ -84,7 +95,9 @@ function startPlayerCacheListener(){
             position: (data.position||data.pos||''),
             class: (data.class||data.year||data.grade||''),
             bats:(data.bats||data.bat||''),
-            throws:(data.throws||data.throw||'')
+            throws:(data.throws||data.throw||''),
+            dob:(data.dob||data.birthdate||data.birth_date||''),
+            agent:(data.agent||'')
           });
         });
         list.sort((a,b)=> a.name.localeCompare(b.name));
@@ -512,6 +525,13 @@ function loadAll(){ try { const r = localStorage.getItem(STORAGE_KEY); if (r) st
    needed (only when the cloud is genuinely empty). */
 let _chartingListening = false;
 let _firstChartingSnap = false;
+let _connTimer = null;
+function _connFail(err){
+  if (_connTimer){ clearTimeout(_connTimer); _connTimer = null; }
+  console.warn('ChartingSessions connection problem', err);
+  setConnState('offline','Disconnected');
+  if (!_firstChartingSnap){ _firstChartingSnap = true; if (ensureDefaultSessionIfEmpty()) renderAll(); }
+}
 function _stripSessMeta(o){ const c = Object.assign({}, o); delete c._updatedAt; return c; }
 function ensureDefaultSessionIfEmpty(){
   if (state.sessions && state.sessions.length) return false;
@@ -522,8 +542,13 @@ function ensureDefaultSessionIfEmpty(){
 function startChartingSessionsListener(){
   if (!_db || _chartingListening) return;
   _chartingListening = true;
+  if (_connTimer){ clearTimeout(_connTimer); }
+  // If the first cloud snapshot never arrives (bad rules / offline / wrong
+  // project), stop showing “Connecting…” forever and fail over to local mode.
+  _connTimer = setTimeout(function(){ if (!_firstChartingSnap) _connFail(new Error('connection timed out')); }, 12000);
   try {
     _db.collection(CHARTING_COLLECTION).onSnapshot(function(snap){
+      if (_connTimer){ clearTimeout(_connTimer); _connTimer = null; }
       setConnState('connected','Connected');
       let changed = false;
       const cloudIds = new Set();
@@ -567,14 +592,11 @@ function startChartingSessionsListener(){
         saveAll(); renderAll();
       }
     }, function(err){
-      console.warn('ChartingSessions listen failed', err);
-      setConnState('offline','Disconnected');
-      if (!_firstChartingSnap){ _firstChartingSnap = true; if (ensureDefaultSessionIfEmpty()) renderAll(); }
+      _connFail(err);
     });
   } catch(err){
     console.warn('ChartingSessions listener setup failed', err);
-    setConnState('offline','Offline');
-    if (!_firstChartingSnap){ _firstChartingSnap = true; if (ensureDefaultSessionIfEmpty()) renderAll(); }
+    _connFail(err);
   }
 }
 
@@ -1328,16 +1350,6 @@ function exportBP(){
 }
 
 /* ===== csv downloads ===== */
-function workoutCsvDownload(kind){
-  const sess = getCurrentSession(); if (!sess) return;
-  const en = sanitizeEventName(sess.name);
-  if (kind==='dash'){ downloadCsv(en+'_60YD_Dash.csv', buildDashCsv(sess)); }
-  else if (kind==='of'){ downloadCsv(en+'_OF_Defense.csv', buildDefenseCsv(sess,'outfielders')); }
-  else if (kind==='if'){ downloadCsv(en+'_IF_Defense.csv', buildDefenseCsv(sess,'infielders')); }
-  else if (kind==='c'){ downloadCsv(en+'_C_Defense.csv', buildDefenseCsv(sess,'catchers')); }
-  else if (kind==='alldef'){ downloadCsv(en+'_All_Defense.csv', buildAllDefenseCsv(sess)); }
-  else if (kind==='allbp'){ downloadCsv(en+'_BP.csv', buildBPCsv(sess)); }
-}
 function downloadAllStored(){
   const sess = getCurrentSession(); if (!sess) return;
   if (!sess.csvStorage.length){ showToast('Nothing stored'); return; }
@@ -2545,6 +2557,12 @@ if (amAddHitterInput){
 
 function init(){
   loadAll();
+  // If players were already cached from an earlier visit this session, surface
+  // them immediately instead of leaving search empty until the cloud replies.
+  try{
+    const pc = sessionStorage.getItem('ath_players_cache');
+    if (pc && !(_playerCache && _playerCache.length)){ const arr=JSON.parse(pc); if (Array.isArray(arr) && arr.length){ _playerCache=arr; _playerCacheReady=true; } }
+  }catch(e){}
   // When the DB is reachable, defer the "create a default event" decision to the
   // first cloud snapshot so we never create a junk empty event while the cloud
   // still has real sessions to load. Offline, fall back to a local default.
@@ -2553,9 +2571,13 @@ function init(){
   if (state.currentSessionId==null && state.sessions.length) state.currentSessionId=state.sessions[0].id;
   state.sessions.forEach(s=>{ ensureSessionClock(s); ensureSessionCounters(s); ensureWorkout(s); });
   state.compactNames = window.innerWidth < 420;
-  window.addEventListener('resize', ()=>{ const compact=window.innerWidth<420; if (compact!==state.compactNames){ state.compactNames=compact; renderPlayerLists(); renderDefenseLists(); renderBPList(); }});
+  window.addEventListener('resize', ()=>{ const compact=window.innerWidth<420; if (compact!==state.compactNames){ state.compactNames=compact; renderPlayerLists(); }});
   initAllFloating();
   renderAll();
+  // Push the player cache to sessionStorage at most ~once per second so a reload
+  // can render search instantly (kept cheap, not on every keystroke).
+  let _lastCachePush = 0;
+  try{ setInterval(function(){ if (_playerCache && _playerCache.length && Date.now()-_lastCachePush>1000){ _lastCachePush=Date.now(); try{ sessionStorage.setItem('ath_players_cache', JSON.stringify(_playerCache)); }catch(e){} } }, 5000); }catch(e){}
   setInterval(()=>{ const s=getCurrentSession(); if (s && s.clock && s.clock.running) updateClockDisplay(); }, 100);
   setInterval(()=> saveAll(), 1500);
   window.addEventListener('beforeunload', ()=> saveAll());
