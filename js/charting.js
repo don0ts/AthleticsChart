@@ -316,6 +316,28 @@ function findCachedByName(name){
   for(const p of _playerCache){ if(normalizeNameKey(p.name)===k) return p; }
   return null;
 }
+/* Compare a profile-being-created against an existing cached profile's info.
+   Fields that are blank on EITHER side are treated as "unknown" and are not
+   counted as a mismatch, so an existing blank-field lineup profile is reused. */
+function profileInfoMatches(hit, want){
+  if(!hit || !want) return false;
+  function blank(v){ return v==null || String(v).trim()===''; }
+  function eq(a,b){ return String(a==null?'':a).trim().toLowerCase() === String(b==null?'':b).trim().toLowerCase(); }
+  const keys=['position','class','bats','throws','dob','agent'];
+  const alias={ 'class':['class','cls'], 'bats':['bats','bat'], 'throws':['throws','throw'] };
+  function get(o,k){
+    const names=alias[k]||[k];
+    for(const n of names){ if(o[n]!=null && String(o[n]).trim()!=='') return String(o[n]); }
+    for(const n of names){ if(o[n]!=null) return String(o[n]); }
+    return '';
+  }
+  for(const k of keys){
+    const a=get(hit,k), b=get(want,k);
+    if(blank(a) || blank(b)) continue;   // unknown value -> not a mismatch
+    if(!eq(a,b)) return false;
+  }
+  return true;
+}
 
 const modalRoot = $('modal-root');
 function showModal(opts){
@@ -428,8 +450,6 @@ const defenseLogList = $('defense-log-list'), bpLogList = $('bp-log-list');
 const angleSide = $('angle-side'), angleBehind = $('angle-behind');
 const csvStorageList = $('csv-storage-list');
 const downloadAllBtn = $('download-all-btn');
-const workoutCsvBtn = $('workout-csv-btn');
-const workoutCsvMenu = $('workout-csv-menu');
 
 const DEF_POS = { outfielders:'OF', infielders:'IF', catchers:'C' };
 const DEF_LABEL = { outfielders:'Outfielder', infielders:'Infielder', catchers:'Catcher' };
@@ -1415,14 +1435,20 @@ function nextAutoId(){
 async function ensureProfileForName(name){
   if(!name) return '';
   if(!_playerCacheReady && _db){ try{ await loadPlayerCache(); }catch(e){} }
+  // Defaults for a profile created from the lineup: Position blank, Class blank,
+  // Bats R, Throws R, DOB blank, Agent blank.
+  const want={ position:'', class:'', bats:'R', throws:'R', dob:'', agent:'' };
   const hit=findCachedByName(name);
-  if(hit){ assignPlayerId(name, hit.id); return hit.id; }
+  // Reuse the existing profile only when its information matches what would be
+  // created; if a same-name profile exists but its info does NOT match, fall
+  // through and create a new profile.
+  if(hit && profileInfoMatches(hit, want)){ assignPlayerId(name, hit.id); return hit.id; }
   if(!_db) return '';
   const id=nextAutoId();
   const ok=await writePlayerDoc(id, { player_id:id, player_name:name, position:'', class:'', bats:'R', throws:'R', dob:'', agent:'' });
   if(ok){
     if(!Array.isArray(_playerCache)) _playerCache=[];
-    _playerCache.push({ id:id, docId:id, name:name, position:'', class:'', bats:'R', throws:'R' });
+    _playerCache.push({ id:id, docId:id, name:name, position:'', class:'', bats:'R', throws:'R', dob:'', agent:'' });
     _playerCache.sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||'')); });
   }
   assignPlayerId(name, id);
@@ -1789,14 +1815,13 @@ wireAdd('add-dash-btn','add-dash', (v)=> addDashPlayer(v));
 
 /* workout copy/paste + export (event delegation) */
 document.addEventListener('click', (e)=>{
-  const t = e.target.closest('[data-copy],[data-paste],[data-export-def],[data-export-bp],[data-export-dash],[data-wcsv]');
+  const t = e.target.closest('[data-copy],[data-paste],[data-export-def],[data-export-bp],[data-export-dash]');
   if (!t) return;
   if (t.hasAttribute('data-copy')) copyWorkoutList(t.getAttribute('data-copy'));
   else if (t.hasAttribute('data-paste')) pasteWorkoutList(t.getAttribute('data-paste'));
   else if (t.hasAttribute('data-export-def')) exportDefense(t.getAttribute('data-export-def'));
   else if (t.hasAttribute('data-export-bp')) exportBP();
   else if (t.hasAttribute('data-export-dash')) exportDash();
-  else if (t.hasAttribute('data-wcsv')){ workoutCsvDownload(t.getAttribute('data-wcsv')); workoutCsvMenu.classList.remove('open'); }
 });
 
 downloadAllBtn.addEventListener('click', downloadAllStored);
