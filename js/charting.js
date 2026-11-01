@@ -1573,8 +1573,8 @@ function setWorkoutSection(sec){
 function setAngle(val){
   const sess=getCurrentSession(); if(!sess) return; ensureWorkout(sess);
   sess.workout.bp.angle = val;
-  angleSide.checked = (val==='S');
-  angleBehind.checked = (val==='BH');
+  if (angleSide) angleSide.checked = (val==='S');
+  if (angleBehind) angleBehind.checked = (val==='BH');
   saveAll();
 }
 
@@ -1845,9 +1845,9 @@ if (wsecDash) wsecDash.addEventListener('click', ()=> setWorkoutSection('dash'))
 if (wsecDefense) wsecDefense.addEventListener('click', ()=> setWorkoutSection('defense'));
 if (wsecBP) wsecBP.addEventListener('click', ()=> setWorkoutSection('bp'));
 
-/* angle checkboxes */
-angleSide.addEventListener('change', ()=> setAngle('S'));
-angleBehind.addEventListener('change', ()=> setAngle('BH'));
+/* angle checkboxes (only present when the workout UI exists) */
+if (angleSide) angleSide.addEventListener('change', ()=> setAngle('S'));
+if (angleBehind) angleBehind.addEventListener('change', ()=> setAngle('BH'));
 
 /* side + clock */
 if (sideTop && sideBot){ sideTop.addEventListener('click', ()=>{ state.currentSide='top'; saveAll(); renderAll(); }); sideBot.addEventListener('click', ()=>{ state.currentSide='bot'; saveAll(); renderAll(); }); }
@@ -1866,7 +1866,7 @@ function renderAll(){
   if (sideTop && sideBot){ sideTop.classList.toggle('active', state.currentSide==='top'); sideBot.classList.toggle('active', state.currentSide==='bot'); }
   if (sideTop2 && sideBot2){ sideTop2.classList.toggle('active', state.currentSide==='top'); sideBot2.classList.toggle('active', state.currentSide==='bot'); }
   renderSzDesc();
-  if (sess){ const a=sess.workout.bp.angle||'S'; angleSide.checked=(a==='S'); angleBehind.checked=(a==='BH'); }
+  if (sess){ const a=sess.workout.bp.angle||'S'; if (angleSide) angleSide.checked=(a==='S'); if (angleBehind) angleBehind.checked=(a==='BH'); }
   setActiveTab('game');
   setWorkoutSection(state.workoutSection||'dash');
 }
