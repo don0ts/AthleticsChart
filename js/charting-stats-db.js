@@ -15,6 +15,7 @@
     appId: "1:929110932897:web:1d91596a2787084a085fe0"
   };
   var CHARTING_COLLECTION = 'AthleticsChartingSessions';
+  var LEGACY_COLLECTION = 'ChartingSessions';
 
   window._dbSessions = [];
   window._dbReady = false;
@@ -44,21 +45,33 @@
 
   if (db) {
     try {
-      db.collection(CHARTING_COLLECTION).onSnapshot(function(snap){
-        var arr = [];
-        snap.forEach(function(doc){
-          var d = doc.data() || {};
-          if (!d.id) d.id = doc.id;
-          if (!Array.isArray(d.events)) d.events = [];
-          arr.push(d);
-        });
+      var _byId = {};
+      function publish(){
+        var arr = Object.keys(_byId).map(function(k){ return _byId[k]; });
         arr.sort(function(a, b){ return String(b.date || '').localeCompare(String(a.date || '')); });
         window._dbSessions = arr;
         window._dbReady = true;
         refreshStats();
-      }, function(err){
-        console.warn('ChartingSessions snapshot failed; using local storage', err);
+      }
+      function consume(snap){
+        snap.forEach(function(doc){
+          var d = doc.data() || {};
+          if (!d.id) d.id = doc.id;
+          if (!Array.isArray(d.events)) d.events = [];
+          _byId[d.id] = d;
+        });
+        publish();
+      }
+      db.collection(CHARTING_COLLECTION).onSnapshot(consume, function(err){
+        console.warn('AthleticsChartingSessions snapshot failed; using local storage', err);
       });
+      // Backward compatibility: also surface events written to the legacy
+      // collection so older recorded data still appears on the Stats page.
+      try{
+        db.collection(LEGACY_COLLECTION).onSnapshot(consume, function(err){
+          console.warn('Legacy ChartingSessions snapshot skipped', err);
+        });
+      }catch(e){}
     } catch (e) { console.warn('ChartingSessions subscribe error', e); }
   }
 })();

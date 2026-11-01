@@ -62,7 +62,31 @@ function startPlayerCacheListener(){
   try {
     _db.collection(COLLECTION).onSnapshot(
       snap => {
-        const list = snap.docs.map(d => { const data=d.data(); return { id:playerDocId(data, d.id), docId:d.id, name:playerDocName(data, d.id), bats:(data.bats||data.bat||''), throws:(data.throws||data.throw||'') }; });
+        const seen = {};
+        const list = [];
+        snap.docs.forEach(d => {
+          const data=d.data();
+          const nm=playerDocName(data, d.id);
+          const id=playerDocId(data, d.id);
+          // collapse duplicates: the same player profile must not appear twice
+          // (handles merged / re-edited records and names differing only by
+          // accents or punctuation, e.g. "José Suarez" vs "Jose Suarez").
+          const key = String(id);
+          const nameKey = normalizeNameKey(nm);
+          if (key && seen['id:'+key]) return;
+          if (nameKey && seen['nm:'+nameKey]) return;
+          if (key) seen['id:'+key] = 1;
+          if (nameKey) seen['nm:'+nameKey] = 1;
+          list.push({
+            id: id,
+            docId: d.id,
+            name: nm,
+            position: (data.position||data.pos||''),
+            class: (data.class||data.year||data.grade||''),
+            bats:(data.bats||data.bat||''),
+            throws:(data.throws||data.throw||'')
+          });
+        });
         list.sort((a,b)=> a.name.localeCompare(b.name));
         _playerCache = list; _playerCache._listening = true;
         _playerCacheReady = true; _playerCacheError = false;
@@ -230,9 +254,17 @@ function attachPlayerSearch(input, onPick){
     if (!items.length){ const n=document.createElement('div'); n.className='psnote'; n.textContent='No matching players in database.'; box.appendChild(n); show(); return; }
     items.forEach((p, i) => {
       const b = document.createElement('button'); b.type='button';
-      const nm = document.createElement('span'); nm.textContent = p.name;
+      b.className='ps-row';
+      const nm = document.createElement('span'); nm.className='psnm'; nm.textContent = p.name;
+      const meta = document.createElement('span'); meta.className='psmeta';
+      const pos = (p.position!=null && String(p.position).trim()) ? String(p.position).trim() : '';
+      const cls = (p.class!=null && String(p.class).trim()) ? String(p.class).trim() : '';
+      const bt = (String(p.bats||'').trim() || String(p.throws||'').trim()) ? ('B/T '+String(p.bats||'\u2014').toUpperCase()+'/'+String(p.throws||'\u2014').toUpperCase()) : '';
+      meta.textContent = [pos, cls, bt].filter(Boolean).join('  \u00b7  ');
       const idl = document.createElement('span'); idl.className='psid'; idl.textContent = 'ID: ' + p.id;
-      b.appendChild(nm); b.appendChild(idl);
+      const left = document.createElement('span'); left.className='psleft';
+      left.appendChild(nm); if (meta.textContent) left.appendChild(meta);
+      b.appendChild(left); b.appendChild(idl);
       if (i===active) b.classList.add('active');
       b.addEventListener('mousedown', (e)=>{ e.preventDefault(); choose(p); });
       box.appendChild(b);
@@ -269,6 +301,21 @@ function parseNameAndId(raw){
 }
 function compactName(name){ if (!name) return ''; const parts = name.trim().split(/\s+/); if (parts.length===1){ if (parts[0].length<=12) return parts[0]; return parts[0].slice(0,1)+'. '+parts[0].slice(Math.max(1, parts[0].length-12)); } const last = parts[parts.length-1]; const first = parts[0].charAt(0).toUpperCase(); return first + '. ' + last; }
 function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ===== Name matching (special-character aware) =====
+   "Same name" ignores accents/diacritics and punctuation, so "José Suarez" and
+   "Jose Suarez" (and "Jose  Suarez", "JOSE SUAREZ") all match. */
+function normalizeNameKey(s){
+  try{ s = String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+  catch(e){ s = String(s==null?'':s); }
+  return s.toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+function samePlayerName(a,b){ const ka=normalizeNameKey(a), kb=normalizeNameKey(b); return !!ka && ka===kb; }
+function findCachedByName(name){
+  const k=normalizeNameKey(name); if(!k) return null;
+  for(const p of _playerCache){ if(normalizeNameKey(p.name)===k) return p; }
+  return null;
+}
 
 const modalRoot = $('modal-root');
 function showModal(opts){
@@ -333,6 +380,8 @@ const clearLogBtn = $('clear-log-btn');
 const logSearchInput = $('log-search');
 const logSearchClear = $('log-search-clear');
 const lockFloatsCheckbox = $('lock-floats');
+const dataCsvBtn = $('data-csv-btn');
+if (dataCsvBtn) dataCsvBtn.style.display = 'none';
 const clockDisplay = $('clock-display');
 const startBtn = $('start-btn');
 const pauseBtn = $('pause-btn');
@@ -371,7 +420,7 @@ const hittersList = $('hitters-list');
 const logList = $('log-list');
 const floatBtn = $('float-log-btn');
 const floatContactBtn = $('float-contact-btn');
-const floatWorkoutBtn = $('float-workout-btn');
+const floatWorkoutBtn = null;
 const floatStartBtn = $('float-start-btn');
 
 const ofList = $('of-list'), ifList = $('if-list'), cList = $('c-list'), bpList = $('bp-list');
@@ -827,7 +876,7 @@ async function playerExistsInDb(id){
   try{ const doc=await _db.collection(COLLECTION).doc(String(id)).get(); return !!(doc && doc.exists); }
   catch(e){ return false; }
 }
-let _epMenuMode='legacy';
+let _epMenuMode='dropdown';
 async function editPlayersModal(){
   const sess=getCurrentSession(); if(!sess){ await showModal({title:'Edit Players', message:'Start or select a session first.'}); return; }
   try{ await loadPlayerCache(); }catch(e){}
@@ -842,22 +891,22 @@ async function editPlayersModal(){
   const model=names.map(name=>{
     let id=playerIdFor(sess,name); let hit=null;
     if(id){ hit=_playerCache.find(pl=> String(pl.id)===String(id) || String(pl.docId)===String(id)); }
-    if(!hit){ hit=_playerCache.find(pl=>pl.name && pl.name.toLowerCase()===name.toLowerCase()); }
+    if(!hit){ hit=findCachedByName(name); }
     if(hit) id=hit.id;
     return { origName:name, name:name, origId:id||'', id:id||'',
       docId: hit?(hit.docId||hit.id):(id||''),
       isPitcher: pitchers.includes(name),
-      position:'', cls:'', dob:'', bats:'', throws:'', loaded:false };
+      position:'', cls:'', dob:'', bats:'', throws:'', agent:'', loaded:false };
   });
   // Pull each player's stored profile (parallel) so every card shows its
-  // current values in both Legacy and Dropdown views.
+  // current values.
   if(_db){
     await Promise.all(model.map(async m=>{
       if(!m.docId) return;
       try{ const doc=await _db.collection(COLLECTION).doc(String(m.docId)).get();
         if(doc && doc.exists){ const d=doc.data()||{};
           m.position=d.position||d.pos||''; m.cls=d.class||d.year||d.grade||'';
-          m.dob=d.dob||d.birthdate||d.birth_date||''; m.bats=(d.bats||d.bat||''); m.throws=(d.throws||d.throw||''); m.loaded=true;
+          m.dob=d.dob||d.birthdate||d.birth_date||''; m.bats=(d.bats||d.bat||''); m.throws=(d.throws||d.throw||''); m.agent=(d.agent||''); m.loaded=true;
         }
       }catch(e){}
     }));
@@ -865,18 +914,14 @@ async function editPlayersModal(){
   model.forEach(m=>{ if(!m.position && m.isPitcher) m.position='P'; });
   const dbNote = _db? '' : '<div class="muted-note" style="color:var(--pitch-red)">Database offline \u2014 the lineup will update, but no profile is written.</div>';
   const html='<div class="ep-root">'
-    + '<div class="ep-head"><div class="ep-toggle">'
-    +   '<label class="ep-tg"><input type="checkbox" id="ep-mode-legacy"/> Legacy</label>'
-    +   '<label class="ep-tg"><input type="checkbox" id="ep-mode-dropdown"/> Dropdown</label>'
-    + '</div></div>'
     + dbNote
     + '<div id="ep-list"></div>'
     + '</div>';
   const p=showModal({ title:'Edit Players', html, buttons:[{label:'Save',value:'save',className:'btn'},{label:'Cancel',value:'cancel',className:'btn ghost'}] });
   const listWrap=$('ep-list');
-  const cbLegacy=$('ep-mode-legacy'), cbDrop=$('ep-mode-dropdown');
+  _epMenuMode='dropdown';
   let ddSel=0;
-  function paintToggle(){ cbLegacy.checked=(_epMenuMode==='legacy'); cbDrop.checked=(_epMenuMode==='dropdown'); }
+  function paintToggle(){ /* dropdown is the only mode */ }
   function cardHtml(m,i,withTitle){
     return '<div class="ep-card" data-mi="'+i+'">'
       + (withTitle?'<div class="ep-card-title">'+escapeHtml(m.name||('Player '+(i+1)))+(m.isPitcher?' \u00b7 P':'')+'</div>':'')
@@ -886,9 +931,10 @@ async function editPlayersModal(){
       + '<label>Position<select data-f="position">'+sel(POSITIONS,m.position)+'</select></label>'
       + '<label>Class<select data-f="cls">'+sel(CLASSES,m.cls)+'</select></label>'
       + '<label>Date of birth<input type="date" data-f="dob" value="'+escapeHtml(m.dob)+'"/></label>'
+      + '<label>Agent<input type="text" data-f="agent" value="'+escapeHtml(m.agent)+'"/></label>'
       + '</div>'
-      + '<div class="ep-seg-row"><span class="ep-seg-lbl">Bats</span><div class="segtabs" data-seg="bats"><div class="segtab'+(m.bats==="R"?' active':'')+'" data-v="R">R</div><div class="segtab'+(m.bats==="L"?' active':'')+'" data-v="L">L</div></div></div>'
-      + '<div class="ep-seg-row"><span class="ep-seg-lbl">Throws</span><div class="segtabs" data-seg="throws"><div class="segtab'+(m.throws==="R"?' active':'')+'" data-v="R">R</div><div class="segtab'+(m.throws==="L"?' active':'')+'" data-v="L">L</div></div></div>'
+      + '<div class="ep-seg-row"><span class="ep-seg-lbl">Bats</span><div class="segtabs" data-seg="bats">'+['R','L','S'].map(v=>'<div class="segtab'+(String(m.bats).toUpperCase()===v?' active':'')+'" data-v="'+v+'">'+v+'</div>').join('')+'</div></div>'
+      + '<div class="ep-seg-row"><span class="ep-seg-lbl">Throws</span><div class="segtabs" data-seg="throws">'+['R','L','S'].map(v=>'<div class="segtab'+(String(m.throws).toUpperCase()===v?' active':'')+'" data-v="'+v+'">'+v+'</div>').join('')+'</div></div>'
       + '</div>';
   }
   function wireCard(cardEl){
@@ -934,8 +980,7 @@ async function editPlayersModal(){
       listWrap.querySelectorAll('.ep-card').forEach(wireCard);
     }
   }
-  cbLegacy.addEventListener('change', ()=>{ _epMenuMode='legacy'; renderList(); });
-  cbDrop.addEventListener('change', ()=>{ _epMenuMode='dropdown'; renderList(); });
+  _epMenuMode='dropdown';
   renderList();
   const res=await p;
   if(res!=='save') return;
@@ -946,7 +991,7 @@ async function editPlayersModal(){
   for(const m of model){
     const newName=(m.name||'').trim(); if(!newName) continue;
     const id=(m.id||'').trim();
-    const data={ player_name:newName, position:m.position||'', class:m.cls||'', bats:m.bats||'', throws:m.throws||'', dob:m.dob||'' };
+    const data={ player_name:newName, position:m.position||'', class:m.cls||'', bats:m.bats||'', throws:m.throws||'', dob:m.dob||'', agent:m.agent||'' };
     if(id) data.player_id=id;
     if(id && _db){
       const ok=await writePlayerDoc(id, data); if(ok) dbWrites++;
@@ -1262,7 +1307,7 @@ function exportBP(){
   );
 }
 
-/* ===== top Workout CSV dropdown downloads ===== */
+/* ===== csv downloads ===== */
 function workoutCsvDownload(kind){
   const sess = getCurrentSession(); if (!sess) return;
   const en = sanitizeEventName(sess.name);
@@ -1363,19 +1408,21 @@ function nextAutoId(){
   return String(m+1);
 }
 /* Adding a player to the lineup auto-creates a profile UNLESS a profile with
-   that exact name already exists — in which case that profile is reused. */
+   that name already exists — in which case that profile is reused. Name
+   matching ignores accents/punctuation, so "José Suarez" reuses "Jose Suarez".
+   New auto-created profiles default to: Position blank, Class blank, Bats R,
+   Throws R, DOB blank, Agent blank. */
 async function ensureProfileForName(name){
   if(!name) return '';
   if(!_playerCacheReady && _db){ try{ await loadPlayerCache(); }catch(e){} }
-  const t=String(name).trim().toLowerCase();
-  const hit=_playerCache.find(function(pl){ return pl.name && pl.name.trim().toLowerCase()===t; });
+  const hit=findCachedByName(name);
   if(hit){ assignPlayerId(name, hit.id); return hit.id; }
   if(!_db) return '';
   const id=nextAutoId();
-  const ok=await writePlayerDoc(id, { player_id:id, player_name:name, position:'', class:'', bats:'', throws:'', dob:'' });
+  const ok=await writePlayerDoc(id, { player_id:id, player_name:name, position:'', class:'', bats:'R', throws:'R', dob:'', agent:'' });
   if(ok){
     if(!Array.isArray(_playerCache)) _playerCache=[];
-    _playerCache.push({ id:id, docId:id, name:name, bats:'', throws:'' });
+    _playerCache.push({ id:id, docId:id, name:name, position:'', class:'', bats:'R', throws:'R' });
     _playerCache.sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||'')); });
   }
   assignPlayerId(name, id);
@@ -1463,14 +1510,12 @@ function updateFloatingButtonVisibility(){
 
 /* ===== tab + section switching ===== */
 function setActiveTab(tab){
-  state.activeTab = tab; saveAll();
-  tabGame.classList.toggle('active', tab==='game');
-  tabWorkout.classList.toggle('active', tab==='workout');
-  gameTab.style.display = tab==='game' ? '' : 'none';
-  workoutTab.style.display = tab==='workout' ? '' : 'none';
+  state.activeTab = 'game'; saveAll();
+  if (tabGame) tabGame.classList.add('active');
+  if (gameTab) gameTab.style.display = '';
   const csvBox = document.querySelector('.csv-storage'); if (csvBox) csvBox.style.display = '';
-  clockHint.textContent = tab==='game' ? 'Game: pick the matchup, then click the strike zone to log pitches.' : 'Workout: Defense (OF/IF/C) and Batting Practice. EXPORT stores a CSV below.';
-  if (tab==='game'){ renderActiveSelects(); renderStrikeZone(); }
+  if (clockHint) clockHint.textContent = 'Game: pick the matchup, then click the strike zone to log pitches.';
+  renderActiveSelects(); renderStrikeZone();
   updateFloatingButtonVisibility();
 }
 function setWorkoutSection(sec){
@@ -1586,19 +1631,25 @@ function buildDataCsv(sess, players, trackmanId, tod){
 // R/L handedness for the active matchup. A per-session override (set via the
 // R/L toggles beside the dropdowns) wins; otherwise fall back to the player's
 // profile value (Bats for hitters, Throws for pitchers) from the live cache.
+// Switch players (value "S") leave the R/L toggle blank; a missing value
+// defaults to "R".
+function handValue(raw){
+  const v=String(raw||'').toUpperCase().charAt(0);
+  if(v==='S') return '';   // switch -> leave the R/L toggle blank
+  if(v==='R'||v==='L') return v;
+  return 'R';              // no value on file -> default to R
+}
 function batSideFor(sess, name){
   if(!name) return '';
-  if(sess && sess.handBats && sess.handBats[name]) return sess.handBats[name];
-  const hit=_playerCache.find(pl=> pl.name && pl.name.toLowerCase()===String(name).toLowerCase());
-  if(hit && hit.bats) return String(hit.bats).toUpperCase().charAt(0);
-  return '';
+  if(sess && sess.handBats && sess.handBats[name]!=null) return handValue(sess.handBats[name]);
+  const hit=findCachedByName(name);
+  return handValue(hit ? hit.bats : 'R');
 }
 function throwSideFor(sess, name){
   if(!name) return '';
-  if(sess && sess.handThrows && sess.handThrows[name]) return sess.handThrows[name];
-  const hit=_playerCache.find(pl=> pl.name && pl.name.toLowerCase()===String(name).toLowerCase());
-  if(hit && hit.throws) return String(hit.throws).toUpperCase().charAt(0);
-  return '';
+  if(sess && sess.handThrows && sess.handThrows[name]!=null) return handValue(sess.handThrows[name]);
+  const hit=findCachedByName(name);
+  return handValue(hit ? hit.throws : 'R');
 }
 // Resolve a player's ID + Bats/Throws using the same logic as Edit Players:
 // match the stored id against player_id OR the Firestore doc id (handles
@@ -1682,7 +1733,7 @@ if (deleteSessionBtn) deleteSessionBtn.addEventListener('click', async ()=>{
   saveAll(); renderAll();
   showToast('Event deleted');
 });
-/* Lock Floating Buttons: when checked, floating buttons can't be dragged or resized
+/* Floating buttons can't be dragged or resized
    (prevents accidentally moving them instead of tapping on touch devices). */
 if (lockFloatsCheckbox){
   lockFloatsCheckbox.addEventListener('change', ()=>{ floatState.locked = lockFloatsCheckbox.checked; document.body.classList.toggle('floats-locked', floatState.locked); saveAll(); });
@@ -1748,18 +1799,14 @@ document.addEventListener('click', (e)=>{
   else if (t.hasAttribute('data-wcsv')){ workoutCsvDownload(t.getAttribute('data-wcsv')); workoutCsvMenu.classList.remove('open'); }
 });
 
-/* workout CSV dropdown */
-workoutCsvBtn.addEventListener('click', (e)=>{ e.stopPropagation(); workoutCsvMenu.classList.toggle('open'); });
-document.addEventListener('click', (e)=>{ if (!workoutCsvMenu.contains(e.target) && e.target!==workoutCsvBtn) workoutCsvMenu.classList.remove('open'); });
-
 downloadAllBtn.addEventListener('click', downloadAllStored);
 
 /* tabs */
-tabGame.addEventListener('click', ()=> setActiveTab('game'));
-tabWorkout.addEventListener('click', ()=> setActiveTab('workout'));
-wsecDash.addEventListener('click', ()=> setWorkoutSection('dash'));
-wsecDefense.addEventListener('click', ()=> setWorkoutSection('defense'));
-wsecBP.addEventListener('click', ()=> setWorkoutSection('bp'));
+if (tabGame) tabGame.addEventListener('click', ()=> setActiveTab('game'));
+if (tabWorkout) tabWorkout.addEventListener('click', ()=> setActiveTab('workout'));
+if (wsecDash) wsecDash.addEventListener('click', ()=> setWorkoutSection('dash'));
+if (wsecDefense) wsecDefense.addEventListener('click', ()=> setWorkoutSection('defense'));
+if (wsecBP) wsecBP.addEventListener('click', ()=> setWorkoutSection('bp'));
 
 /* angle checkboxes */
 angleSide.addEventListener('change', ()=> setAngle('S'));
@@ -1783,7 +1830,7 @@ function renderAll(){
   if (sideTop2 && sideBot2){ sideTop2.classList.toggle('active', state.currentSide==='top'); sideBot2.classList.toggle('active', state.currentSide==='bot'); }
   renderSzDesc();
   if (sess){ const a=sess.workout.bp.angle||'S'; angleSide.checked=(a==='S'); angleBehind.checked=(a==='BH'); }
-  setActiveTab(state.activeTab||'game');
+  setActiveTab('game');
   setWorkoutSection(state.workoutSection||'dash');
 }
 /* ===== NEW: strike-zone pitch flow + stats ===== */

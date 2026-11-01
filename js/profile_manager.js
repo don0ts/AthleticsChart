@@ -4,6 +4,7 @@ function el(tag,props,style){var e=document.createElement(tag);if(props)Object.k
 function showToast(m,bad){var t=$('toast');t.textContent=m;t.className='toast show'+(bad?' bad':'');setTimeout(function(){t.className='toast'+(bad?' bad':'');},2000);}
 var CLASS_OPTS=(function(){var a=[];for(var y=2016;y<=2037;y++)a.push(String(y));return a;})();
 var POSITIONS=['','P','C','1B','2B','3B','SS','IF','LF','CF','RF','OF','DH','UTIL'];
+var HAND_OPTS=['R','L','S'];
 
 // ---- Status-entry / merge helpers ----
 // A profile "has entries in the Status page" when its status{} map holds at
@@ -20,6 +21,22 @@ function profileLabel(r){
   return id+' - '+nm+pos;
 }
 function parseMDY(s){ var m=/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(String(s||'').trim()); if(!m) return 0; var y=+m[3]; if(y<100)y+=2000; return new Date(y,(+m[1])-1,+m[2]).getTime(); }
+// "Same name" ignores accents/diacritics and punctuation, so "José Suarez" and
+// "Jose Suarez" are treated as the same player.
+function normalizeNameKey(s){
+  try{ s=String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,''); }catch(e){ s=String(s==null?'':s); }
+  return s.toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+// A profile with the same name (accent/punctuation-insensitive) or the same id.
+function findExistingProfile(name,id){
+  var nk=normalizeNameKey(name), sk=String(id==null?'':id);
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    if(sk && String(r.player_id||r._id||'')===sk) return r;
+    if(nk && normalizeNameKey(r.player_name)===nk) return r;
+  }
+  return null;
+}
 function statusOf(r){ return (r&&r.status&&typeof r.status==='object')?r.status:{}; }
 // Union of every selected profile's status dates, keeping the most recent per group.
 function mergeStatus(selected){
@@ -46,6 +63,7 @@ function computeMergedDoc(selected){
     bats:(primary.bats||pick('bats'))||'',
     throws:(primary.throws||pick('throws'))||'',
     dob:(primary.dob||pick('dob'))||'',
+    agent:(primary.agent||pick('agent'))||'',
     status:mergeStatus(selected)
   };
 }
@@ -62,7 +80,8 @@ var SORT_COLS=[
   {key:'class',    label:'Class',    get:function(r){return String(r.class||'');}},
   {key:'bats',     label:'Bats',     get:function(r){return String(r.bats||'');}},
   {key:'throws',   label:'Throws',   get:function(r){return String(r.throws||'');}},
-  {key:'dob',      label:'DOB',      get:function(r){return String(r.dob||'');}}
+  {key:'dob',      label:'DOB',      get:function(r){return String(r.dob||'');}},
+  {key:'agent',    label:'Agent',    get:function(r){return String(r.agent||'');}}
 ];
 var sortState={key:'name',dir:'asc'};
 function colByKey(k){ for(var i=0;i<SORT_COLS.length;i++){ if(SORT_COLS[i].key===k) return SORT_COLS[i]; } return SORT_COLS[0]; }
@@ -132,6 +151,7 @@ function render(){
     tr.appendChild(el('td',{textContent:r.bats||'\u2014'}));
     tr.appendChild(el('td',{textContent:r.throws||'\u2014'}));
     tr.appendChild(el('td',{textContent:r.dob||'\u2014'}));
+    tr.appendChild(el('td',{textContent:r.agent||'\u2014'}));
     var tdA=el('td');var wrap=el('div',{className:'rowacts'});
     var eb=el('button',{className:'ghost',textContent:'Edit'});eb.addEventListener('click',function(){openEdit(r);});
     var db=el('button',{className:'danger',textContent:'Delete'});
@@ -149,7 +169,7 @@ function render(){
     c.appendChild(top);
     var kv=el('div',{className:'kv'});
     function add(label,val){kv.appendChild(el('b',{textContent:label}));kv.appendChild(el('span',{textContent:val||'\u2014'}));}
-    add('ID',r.player_id||r._id);add('Class',r.class);add('Bats',r.bats);add('Throws',r.throws);add('DOB',r.dob);
+    add('ID',r.player_id||r._id);add('Class',r.class);add('Bats',r.bats);add('Throws',r.throws);add('DOB',r.dob);add('Agent',r.agent);
     c.appendChild(kv);
     var wrap=el('div',{className:'rowacts'});
     var eb=el('button',{className:'ghost',textContent:'Edit'});eb.addEventListener('click',function(){openEdit(r);});
@@ -227,10 +247,11 @@ function profileForm(r){
   fId._input.addEventListener('input',function(){idWarn.style.display=(!isNew&&fId._input.value.trim()!==oldId)?'block':'none';});
   var fPos=fieldSelect('Position',r?r.position:'',POSITIONS);
   var fClass=fieldSelect('Class',r?r.class:'',[''].concat(CLASS_OPTS));
-  var fBats=fieldSeg('Bats',r?r.bats:'',['R','L']);
-  var fThrows=fieldSeg('Throws',r?r.throws:'',['R','L']);
+  var fBats=fieldSeg('Bats',r?r.bats:'',HAND_OPTS);
+  var fThrows=fieldSeg('Throws',r?r.throws:'',HAND_OPTS);
   var fDob=fieldDate('Date of birth',r?r.dob:'');
-  root.appendChild(fName);root.appendChild(fId);root.appendChild(fPos);root.appendChild(fClass);root.appendChild(fBats);root.appendChild(fThrows);root.appendChild(fDob);
+  var fAgent=fieldText('Agent',r?r.agent:'','Agent name');
+  root.appendChild(fName);root.appendChild(fId);root.appendChild(fPos);root.appendChild(fClass);root.appendChild(fBats);root.appendChild(fThrows);root.appendChild(fDob);root.appendChild(fAgent);
   var acts=el('div',{className:'acts'});
   var cancel=el('button',{className:'ghost',textContent:'Cancel'});cancel.addEventListener('click',closeModal);
   var save=el('button',{className:'primary',textContent:isNew?'Create':'Save changes'});
@@ -247,7 +268,8 @@ function profileForm(r){
       class:fClass._input.value||'',
       bats:fBats._state.v||'',
       throws:fThrows._state.v||'',
-      dob:fDob._input.value||''
+      dob:fDob._input.value||'',
+      agent:fAgent._input.value.trim()||''
     };
     if(!DB){ showToast('Not connected to the database',true); return; }
     // duplicate-id guard when creating or changing the ID
@@ -388,10 +410,11 @@ function mergeConfirmForm(merged, selectedRows){
   var fId=fieldText('ID (Player ID)',merged.player_id,'e.g. 3');
   var fPos=fieldSelect('Position',merged.position,POSITIONS);
   var fClass=fieldSelect('Class',merged.class,[''].concat(CLASS_OPTS));
-  var fBats=fieldSeg('Bats',merged.bats,['R','L']);
-  var fThrows=fieldSeg('Throws',merged.throws,['R','L']);
+  var fBats=fieldSeg('Bats',merged.bats,HAND_OPTS);
+  var fThrows=fieldSeg('Throws',merged.throws,HAND_OPTS);
   var fDob=fieldDate('Date of birth',merged.dob);
-  root.appendChild(fName);root.appendChild(fId);root.appendChild(fPos);root.appendChild(fClass);root.appendChild(fBats);root.appendChild(fThrows);root.appendChild(fDob);
+  var fAgent=fieldText('Agent',merged.agent,'Agent name');
+  root.appendChild(fName);root.appendChild(fId);root.appendChild(fPos);root.appendChild(fClass);root.appendChild(fBats);root.appendChild(fThrows);root.appendChild(fDob);root.appendChild(fAgent);
   var acts=el('div',{className:'acts'});
   var cancel=el('button',{className:'ghost',textContent:'Cancel'});cancel.addEventListener('click',closeModal);
   var go=el('button',{className:'primary',textContent:'Merge profiles'});
@@ -411,6 +434,7 @@ function mergeConfirmForm(merged, selectedRows){
       bats:fBats._state.v||'',
       throws:fThrows._state.v||'',
       dob:fDob._input.value||'',
+      agent:fAgent._input.value.trim()||'',
       status:merged.status||{}
     };
     if(!DB){ showToast('Not connected to the database',true); return; }

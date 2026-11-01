@@ -100,3 +100,7 @@ table.stats.basic-stats tbody td.left{text-align:left}
 .stats th.sortable:hover{color:var(--accent)}
 .stats th.sorted{color:#eaf2ff}
 table.stats.basic-stats tbody tr:hover td{background:rgba(239,178,30,.06)}
+
+/* Intense red "Log out" nav link */
+.nav-logout{background:#c21414!important;color:#fff!important;border-color:#8f0d0d!important;font-weight:800!important;border-radius:8px;padding:6px 12px;text-decoration:none;box-shadow:0 2px 8px rgba(194,20,20,.45)}
+.nav-logout:hover{background:#e01e1e!important;color:#fff!important}

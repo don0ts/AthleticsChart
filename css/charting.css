@@ -245,7 +245,10 @@ footer{font-size:11px;color:var(--muted);text-align:center;margin-top:6px}
 }
 .player-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:500;background:linear-gradient(180deg,#08301f,#062018);border:1px solid var(--soft-border);border-radius:10px;padding:5px;display:none;flex-direction:column;gap:3px;max-height:260px;overflow:auto;box-shadow:0 14px 36px rgba(2,6,23,.65);min-width:0}
 .player-suggest.open{display:flex}
-.player-suggest button{background:transparent;border:0;color:#eaf6ff;text-align:left;padding:8px 10px;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.player-suggest button{background:transparent;border:0;color:#eaf6ff;text-align:left;padding:8px 10px;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+.player-suggest .psleft{display:flex;flex-direction:column;gap:2px;min-width:0}
+.player-suggest .psmeta{font-size:11px;color:var(--accent);font-weight:700;text-transform:none}
+.player-suggest .psid{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap}
 .player-suggest button:hover,.player-suggest button.active{background:rgba(239,178,30,0.14)}
 .player-suggest .psid{font-size:11px;color:var(--muted);font-weight:600}
 .player-suggest .psnote{padding:8px 10px;color:var(--muted);font-size:12px}
@@ -513,3 +516,7 @@ select option, select optgroup{background:#08301f;color:#eaf6ff}
 .connstate[data-state="connected"]{color:#34d399;border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.08)}
 .connstate[data-state="connecting"]{color:#fbbf24;border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
 .connstate[data-state="offline"]{color:#f87171;border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08)}
+
+/* Intense red "Log out" nav link */
+.nav-logout{background:#c21414!important;color:#fff!important;border-color:#8f0d0d!important;font-weight:800!important;border-radius:8px;padding:6px 12px;text-decoration:none;box-shadow:0 2px 8px rgba(194,20,20,.45)}
+.nav-logout:hover{background:#e01e1e!important;color:#fff!important}
