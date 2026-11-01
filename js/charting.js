@@ -273,7 +273,8 @@ function attachPlayerSearch(input, onPick){
       const pos = (p.position!=null && String(p.position).trim()) ? String(p.position).trim() : '';
       const cls = (p.class!=null && String(p.class).trim()) ? String(p.class).trim() : '';
       const bt = (String(p.bats||'').trim() || String(p.throws||'').trim()) ? ('B/T '+String(p.bats||'\u2014').toUpperCase()+'/'+String(p.throws||'\u2014').toUpperCase()) : '';
-      meta.textContent = [pos, cls, bt].filter(Boolean).join('  \u00b7  ');
+      const agent = (p.agent!=null && String(p.agent).trim()) ? ('Agent: '+String(p.agent).trim()) : '';
+      meta.textContent = [pos, cls, bt, agent].filter(Boolean).join('  \u00b7  ');
       const idl = document.createElement('span'); idl.className='psid'; idl.textContent = 'ID: ' + p.id;
       const left = document.createElement('span'); left.className='psleft';
       left.appendChild(nm); if (meta.textContent) left.appendChild(meta);
@@ -1467,9 +1468,73 @@ async function ensureProfileForName(name){
   return id;
 }
 /* ===== add players ===== */
+/* Create a brand-new player profile from the Add Player inputs.
+   Opens a profile window (same fields as Edit Players) so the user can enter the
+   name/details, then adds the player to the lineup and writes the profile to the
+   database. Used when "Add" is clicked with no name typed. */
+async function createProfileModal(type){
+  const sess=getCurrentSession();
+  if(!sess) return showModal({title:'No session',message:'Create/select an event first.',buttons:[{label:'OK',value:true}]});
+  const POSITIONS=['','P','C','1B','2B','3B','SS','IF','LF','CF','RF','OF','DH','UTIL'];
+  const CLASSES=['']; for(var _y=2016;_y<=2037;_y++) CLASSES.push(String(_y));
+  const sel=(arr,cur)=>arr.map(o=>'<option value="'+escapeHtml(o)+'"'+(String(o)===String(cur||'')?' selected':'')+'>'+(o===''?'--':escapeHtml(o))+'</option>').join('');
+  const defPos=(type==='pitcher')?'P':'';
+  const dbNote=_db?'':'<div class="muted-note" style="color:var(--pitch-red)">Database offline \u2014 the player is added to the lineup, but no profile is written.</div>';
+  const html='<div class="ep-root">'+dbNote
+    + '<div class="ep-grid">'
+    + '<label>Player Name<input type="text" id="cp-name" value="" autocomplete="off"/></label>'
+    + '<label>ID (Player ID Cubs)<input type="text" id="cp-id" value="" autocomplete="off"/></label>'
+    + '<label>Position<select id="cp-position">'+sel(POSITIONS,defPos)+'</select></label>'
+    + '<label>Class<select id="cp-cls">'+sel(CLASSES,'')+'</select></label>'
+    + '<label>Date of birth<input type="date" id="cp-dob" value=""/></label>'
+    + '<label>Agent<input type="text" id="cp-agent" value=""/></label>'
+    + '</div>'
+    + '<div class="ep-seg-row"><span class="ep-seg-lbl">Bats</span><div class="segtabs" id="cp-bats">'+['R','L','S'].map(v=>'<div class="segtab'+(v==='R'?' active':'')+'" data-v="'+v+'">'+v+'</div>').join('')+'</div></div>'
+    + '<div class="ep-seg-row"><span class="ep-seg-lbl">Throws</span><div class="segtabs" id="cp-throws">'+['R','L','S'].map(v=>'<div class="segtab" data-v="'+v+'">'+v+'</div>').join('')+'</div></div>'
+    + '</div>';
+  const p=showModal({ title:'Create Player Profile', html, buttons:[{label:'Create',value:'create',className:'btn'},{label:'Cancel',value:'cancel',className:'btn ghost'}] });
+  // segment toggles (single-select, click again to clear)
+  let bats='R', thr='';
+  const wireSeg=(id, set)=>{ const seg=$(id); if(!seg) return; seg.querySelectorAll('.segtab').forEach(t=> t.addEventListener('click', ()=>{ const on=t.classList.contains('active'); seg.querySelectorAll('.segtab').forEach(x=>x.classList.remove('active')); if(!on){ t.classList.add('active'); set(t.getAttribute('data-v')); } else { set(''); } })); };
+  wireSeg('cp-bats', v=>{ bats=v; }); wireSeg('cp-throws', v=>{ thr=v; });
+  const nameEl=$('cp-name'); if(nameEl) setTimeout(()=>nameEl.focus(),30);
+  const res=await p;
+  if(res!=='create') return;
+  const name=titleCaseName(($('cp-name')||{}).value||'');
+  if(!name){ showToast('Enter a player name to create a profile'); return createProfileModal(type); }
+  const pos=($('cp-position')||{}).value||'';
+  const cls=($('cp-cls')||{}).value||'';
+  const dob=($('cp-dob')||{}).value||'';
+  const agent=($('cp-agent')||{}).value||'';
+  let id=(($('cp-id')||{}).value||'').trim();
+  // reuse an existing same-name profile only when its info matches
+  const want={ position:pos, class:cls, bats:bats, throws:thr, dob:dob, agent:agent };
+  const hit=findCachedByName(name);
+  if(!id && hit && profileInfoMatches(hit, want)){ id=hit.id; }
+  if(!id){ id=nextAutoId(); }
+  if(_db){
+    const data={ player_id:id, player_name:name, position:pos, class:cls, bats:bats, throws:thr, dob:dob, agent:agent };
+    const ok=await writePlayerDoc(id, data);
+    if(ok){
+      if(!Array.isArray(_playerCache)) _playerCache=[];
+      const existing=_playerCache.find(x=> String(x.id)===String(id) || String(x.docId)===String(id));
+      if(existing){ existing.name=name; existing.position=pos; existing.class=cls; existing.bats=bats; existing.throws=thr; existing.dob=dob; existing.agent=agent; }
+      else _playerCache.push({ id:id, docId:id, name:name, position:pos, class:cls, bats:bats, throws:thr, dob:dob, agent:agent });
+      _playerCache.sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||'')); });
+    } else { showToast('Could not save profile (database offline?)'); }
+  }
+  const team=sess.teams[state.currentSide];
+  if(type==='pitcher'){ if(!team.pitchers.includes(name)) team.pitchers.push(name); team.selectedPitcher=name; }
+  else { if(!team.hitters.includes(name)) team.hitters.push(name); team.selectedHitter=name; }
+  assignPlayerId(name, id);
+  saveAll(); renderPlayerLists(); updatePitcherCountBadges();
+  showToast('Profile created for '+name);
+}
 function addPlayer(type, raw){
   const sess=getCurrentSession(); if(!sess) return showModal({title:'No session',message:'Create/select an event first.',buttons:[{label:'OK',value:true}]});
-  const team=sess.teams[state.currentSide]; const val=(raw||'').trim(); if(!val) return; const parsed=parseNameAndId(val); const name=parsed.name; if(!name) return;
+  const team=sess.teams[state.currentSide]; const val=(raw||'').trim();
+  if(!val){ createProfileModal(type); return; }  // no name typed -> prompt to create a profile
+  const parsed=parseNameAndId(val); const name=parsed.name; if(!name){ createProfileModal(type); return; }
   if(parsed.id) assignPlayerId(name, parsed.id);
   else ensureProfileForName(name).catch(function(e){ console.warn('auto-profile create failed', e); });
   if (type==='pitcher'){ if(!team.pitchers.includes(name)) team.pitchers.push(name); team.selectedPitcher=name; }
