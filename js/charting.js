@@ -1471,18 +1471,21 @@ async function ensureProfileForName(name){
 /* Create a brand-new player profile from the Add Player inputs.
    Opens a profile window (same fields as Edit Players) so the user can enter the
    name/details, then adds the player to the lineup and writes the profile to the
-   database. Used when "Add" is clicked with no name typed. */
-async function createProfileModal(type){
+   database. This is the ONLY way the Add button adds a player — the raw text in
+   the input is never auto-added (avoids adding a half-typed name). An optional
+   prefillName seeds the Name field from whatever was already typed. */
+async function createProfileModal(type, prefillName){
   const sess=getCurrentSession();
   if(!sess) return showModal({title:'No session',message:'Create/select an event first.',buttons:[{label:'OK',value:true}]});
   const POSITIONS=['','P','C','1B','2B','3B','SS','IF','LF','CF','RF','OF','DH','UTIL'];
   const CLASSES=['']; for(var _y=2016;_y<=2037;_y++) CLASSES.push(String(_y));
   const sel=(arr,cur)=>arr.map(o=>'<option value="'+escapeHtml(o)+'"'+(String(o)===String(cur||'')?' selected':'')+'>'+(o===''?'--':escapeHtml(o))+'</option>').join('');
   const defPos=(type==='pitcher')?'P':'';
+  const seedName=titleCaseName(prefillName||'');
   const dbNote=_db?'':'<div class="muted-note" style="color:var(--pitch-red)">Database offline \u2014 the player is added to the lineup, but no profile is written.</div>';
   const html='<div class="ep-root">'+dbNote
     + '<div class="ep-grid">'
-    + '<label>Player Name<input type="text" id="cp-name" value="" autocomplete="off"/></label>'
+    + '<label>Player Name<input type="text" id="cp-name" value="'+escapeHtml(seedName)+'" autocomplete="off"/></label>'
     + '<label>ID (Player ID Cubs)<input type="text" id="cp-id" value="" autocomplete="off"/></label>'
     + '<label>Position<select id="cp-position">'+sel(POSITIONS,defPos)+'</select></label>'
     + '<label>Class<select id="cp-cls">'+sel(CLASSES,'')+'</select></label>'
@@ -1501,7 +1504,7 @@ async function createProfileModal(type){
   const res=await p;
   if(res!=='create') return;
   const name=titleCaseName(($('cp-name')||{}).value||'');
-  if(!name){ showToast('Enter a player name to create a profile'); return createProfileModal(type); }
+  if(!name){ showToast('Enter a player name to create a profile'); return createProfileModal(type, (($('cp-name')||{}).value||'')); }
   const pos=($('cp-position')||{}).value||'';
   const cls=($('cp-cls')||{}).value||'';
   const dob=($('cp-dob')||{}).value||'';
@@ -1530,17 +1533,11 @@ async function createProfileModal(type){
   saveAll(); renderPlayerLists(); updatePitcherCountBadges();
   showToast('Profile created for '+name);
 }
-function addPlayer(type, raw){
-  const sess=getCurrentSession(); if(!sess) return showModal({title:'No session',message:'Create/select an event first.',buttons:[{label:'OK',value:true}]});
-  const team=sess.teams[state.currentSide]; const val=(raw||'').trim();
-  if(!val){ createProfileModal(type); return; }  // no name typed -> prompt to create a profile
-  const parsed=parseNameAndId(val); const name=parsed.name; if(!name){ createProfileModal(type); return; }
-  if(parsed.id) assignPlayerId(name, parsed.id);
-  else ensureProfileForName(name).catch(function(e){ console.warn('auto-profile create failed', e); });
-  if (type==='pitcher'){ if(!team.pitchers.includes(name)) team.pitchers.push(name); team.selectedPitcher=name; }
-  else { if(!team.hitters.includes(name)) team.hitters.push(name); team.selectedHitter=name; }
-  saveAll(); renderPlayerLists();
-}
+/* NOTE: the old addPlayer() that auto-added whatever raw text was typed in the
+   Add Pitcher/Hitter box has been removed. The Add button now always opens the
+   Create Player Profile window (createProfileModal), so a half-typed name can no
+   longer be added by accident. Picking an existing player from the search
+   dropdown still adds them directly via addDbPlayer(). */
 function addDefensePlayer(group, raw){
   const sess=getCurrentSession(); if(!sess) return; ensureWorkout(sess);
   const d=sess.workout.defense; const val=(raw||'').trim(); if(!val) return; const parsed=parseNameAndId(val); const name=parsed.name; if(!name) return;
@@ -1841,10 +1838,10 @@ if (deleteSessionBtn) deleteSessionBtn.addEventListener('click', async ()=>{
 if (lockFloatsCheckbox){
   lockFloatsCheckbox.addEventListener('change', ()=>{ floatState.locked = lockFloatsCheckbox.checked; document.body.classList.toggle('floats-locked', floatState.locked); saveAll(); });
 }
-addPitcherBtn.addEventListener('click', ()=>{ addPlayer('pitcher', addPitcherInput.value); addPitcherInput.value=''; });
-addHitterBtn.addEventListener('click', ()=>{ addPlayer('hitter', addHitterInput.value); addHitterInput.value=''; });
-addPitcherInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ addPitcherBtn.click(); e.preventDefault(); }});
-addHitterInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ addHitterBtn.click(); e.preventDefault(); }});
+addPitcherBtn.addEventListener('click', ()=>{ createProfileModal('pitcher', addPitcherInput.value); addPitcherInput.value=''; });
+addHitterBtn.addEventListener('click', ()=>{ createProfileModal('hitter', addHitterInput.value); addHitterInput.value=''; });
+addPitcherInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); addPitcherBtn.click(); }});
+addHitterInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); addHitterBtn.click(); }});
 addPitcherInput.addEventListener('blur', ()=> addPitcherInput.value=titleCaseName(addPitcherInput.value));
 addHitterInput.addEventListener('blur', ()=> addHitterInput.value=titleCaseName(addHitterInput.value));
 /* Firestore player search on Game add-inputs */
@@ -2589,7 +2586,7 @@ const amAddPitcherInput = $('am-add-pitcher');
 const amAddPitcherBtn = $('am-add-pitcher-btn');
 const amAddHitterInput = $('am-add-hitter');
 const amAddHitterBtn = $('am-add-hitter-btn');
-if (amAddPitcherBtn) amAddPitcherBtn.addEventListener('click', ()=>{ addPlayer('pitcher', amAddPitcherInput.value); amAddPitcherInput.value=''; });if (amAddHitterBtn) amAddHitterBtn.addEventListener('click', ()=>{ addPlayer('hitter', amAddHitterInput.value); amAddHitterInput.value=''; });
+if (amAddPitcherBtn) amAddPitcherBtn.addEventListener('click', ()=>{ createProfileModal('pitcher', amAddPitcherInput.value); amAddPitcherInput.value=''; });if (amAddHitterBtn) amAddHitterBtn.addEventListener('click', ()=>{ createProfileModal('hitter', amAddHitterInput.value); amAddHitterInput.value=''; });
 const editPlayersBtn = $('edit-players-btn');
 if (editPlayersBtn) editPlayersBtn.addEventListener('click', ()=> editPlayersModal());
 const syncIdsBtn = $('sync-ids-btn');
@@ -2610,12 +2607,12 @@ function hotkeysHelpModal(){
 const hotkeysHelpBtn = $('hotkeys-help-btn');
 if (hotkeysHelpBtn) hotkeysHelpBtn.addEventListener('click', ()=> hotkeysHelpModal());
 if (amAddPitcherInput){
-  amAddPitcherInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ amAddPitcherBtn.click(); e.preventDefault(); }});
+  amAddPitcherInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); amAddPitcherBtn.click(); }});
   amAddPitcherInput.addEventListener('blur', ()=> amAddPitcherInput.value=titleCaseName(amAddPitcherInput.value));
   attachPlayerSearch(amAddPitcherInput, (name,id)=> addDbPlayer('pitcher', name, id));
 }
 if (amAddHitterInput){
-  amAddHitterInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ amAddHitterBtn.click(); e.preventDefault(); }});
+  amAddHitterInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); amAddHitterBtn.click(); }});
   amAddHitterInput.addEventListener('blur', ()=> amAddHitterInput.value=titleCaseName(amAddHitterInput.value));
   attachPlayerSearch(amAddHitterInput, (name,id)=> addDbPlayer('hitter', name, id));
 }

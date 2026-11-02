@@ -1,9 +1,9 @@
 /* =============================================================================
    Stats site — live read of charting events from Firestore.
-   Subscribes to the "ChartingSessions" collection (written by the charting
-   recorder) and exposes the sessions on window so loadState() in
-   charting-stats.js can use them. Falls back to local storage until the first
-   snapshot arrives, and if Firestore is unavailable / blocked by rules.
+   Subscribes ONLY to the "AthleticsChartingSessions" collection (written by the
+   Athletics charting recorder) and exposes the sessions on window so
+   loadState() in charting-stats.js can use them. Falls back to local storage
+   until the first snapshot arrives, and if Firestore is unavailable / blocked.
    ============================================================================= */
 (function(){
   var firebaseConfig = {
@@ -15,7 +15,6 @@
     appId: "1:929110932897:web:1d91596a2787084a085fe0"
   };
   var CHARTING_COLLECTION = 'AthleticsChartingSessions';
-  var LEGACY_COLLECTION = 'ChartingSessions';
 
   window._dbSessions = [];
   window._dbReady = false;
@@ -65,13 +64,10 @@
       db.collection(CHARTING_COLLECTION).onSnapshot(consume, function(err){
         console.warn('AthleticsChartingSessions snapshot failed; using local storage', err);
       });
-      // Backward compatibility: also surface events written to the legacy
-      // collection so older recorded data still appears on the Stats page.
-      try{
-        db.collection(LEGACY_COLLECTION).onSnapshot(consume, function(err){
-          console.warn('Legacy ChartingSessions snapshot skipped', err);
-        });
-      }catch(e){}
+      // NOTE: the legacy shared "ChartingSessions" collection is intentionally
+      // NOT read here. It is written by other tools/orgs, so surfacing it mixed
+      // in stats from unrelated collections. Athletics stats come only from
+      // AthleticsChartingSessions.
     } catch (e) { console.warn('ChartingSessions subscribe error', e); }
   }
 })();
