@@ -2174,13 +2174,27 @@ async function pitchGroupVeloModal(ev){
     + '<label class="no-velo"><input type="checkbox" id="no-velo"'+(noVelo?' checked':'')+'/> No Velo Registered</label>'
     + '<div class="sect-lbl">Pitch Group</div>'
     + '<div class="grp-btns">'
-    + PITCH_GROUPS.map(g=>'<button type="button" class="pk grp-pick submit-btn'+(g===chosen?' selected':'')+'" data-pg="'+g+'" data-resolve="next">'+PITCH_GROUP_LABEL[g]+'</button>').join('')
+    + PITCH_GROUPS.map(g=>'<button type="button" class="pk grp-pick submit-btn'+(g===chosen?' selected':'')+'" data-pg="'+g+'">'+PITCH_GROUP_LABEL[g]+'</button>').join('')
     + '</div>'
+    + '<button type="button" id="pgv-next" data-resolve="next" style="display:none" aria-hidden="true"></button>'
     + miniZone;
   const p = showModal({ html, buttons:[{label:'Cancel',value:'cancel',className:'btn ghost',fullWidth:true}] });
   const grpBtns = Array.from(modalRoot.querySelectorAll('[data-pg]'));
+  const pgvNext = $('pgv-next');
   function paintGrp(){ grpBtns.forEach(b=> b.classList.toggle('selected', b.getAttribute('data-pg')===chosen)); }
-  grpBtns.forEach(b=> b.addEventListener('click', ()=>{ chosen=b.getAttribute('data-pg'); paintGrp(); }));
+  // Set `chosen` FIRST, then resolve via the hidden Next button. Doing both in a
+  // single handler (instead of relying on a separate data-resolve listener)
+  // fixes a touch-device bug: hiding the modal mid-click aborted the remaining
+  // listener on the tapped button, so `chosen` never updated and the pitch was
+  // logged as the default (FB) regardless of which group was tapped.
+  // The modal opens from the strike-zone pointerup, so a touch tap also emits a
+  // delayed synthetic click at the same spot. Ignore any taps in the first
+  // ~350ms so that ghost click can't select/submit a group by accident.
+  let armed = false; setTimeout(()=>{ armed = true; }, 350);
+  function pickGroup(g){ if(!armed) return; chosen=g; paintGrp(); if(pgvNext) pgvNext.click(); }
+  // Keys are an explicit user action, not a ghost click, so they bypass `armed`.
+  function submitGroup(g){ chosen=g; paintGrp(); if(pgvNext) pgvNext.click(); }
+  grpBtns.forEach(b=> b.addEventListener('click', ()=>{ pickGroup(b.getAttribute('data-pg')); }));
   const zoneBtns = Array.from(modalRoot.querySelectorAll('[data-zone]'));
   function paintZone(){ zoneBtns.forEach(b=> b.classList.toggle('selected', (b.getAttribute('data-zone')==='in')===inzone)); }
   zoneBtns.forEach(b=> b.addEventListener('click', ()=>{ inzone=(b.getAttribute('data-zone')==='in'); paintZone(); placeDot(); }));
@@ -2206,7 +2220,6 @@ async function pitchGroupVeloModal(ev){
   placeDot();
   chgBtn.addEventListener('click', ()=>{ const show = mzWrap.style.display==='none'; mzWrap.style.display = show?'block':'none'; chgBtn.classList.toggle('on', show); });
   mzArea.addEventListener('click', (e)=>{ const r=mzArea.getBoundingClientRect(); px=Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100)); py=Math.max(0,Math.min(100,(e.clientY-r.top)/r.height*100)); inzone=calcInzone(px,py); placeDot(); paintZone(); });
-  function submitGroup(g){ const b=grpBtns.find(x=>x.getAttribute('data-pg')===g); if(b){ chosen=g; paintGrp(); b.click(); } }
   function pgvOnKey(e){
     const k=(e.key||'').toLowerCase();
     if(e.key>='0' && e.key<='9'){ e.preventDefault(); feedVeloDigit(e.key); return; }
