@@ -477,10 +477,10 @@ select option, select optgroup{background:#08301f;color:#eaf6ff}
 .pk.hollow{background:transparent;border:1.5px solid var(--accent);color:var(--accent)}
 .pk.hollow.selected{background:rgba(239,178,30,0.16);color:#eaf6ff;box-shadow:none}
 .pk.hollow:disabled,.pk.hollow.res-off{opacity:.35;cursor:not-allowed;filter:grayscale(.6)}
-.grp-btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 12px}
+.grp-btns{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:6px 0 12px}
 .zone-btns{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:6px 0 12px}
 .zone-pick{padding:12px 8px;font-size:14px}
-.grp-pick{padding:14px 8px;font-size:14px}
+.grp-pick{flex:0 0 calc(33.333% - 6px);padding:14px 8px;font-size:14px}
 .result-row{display:flex;flex-direction:column;gap:8px;margin:6px 0 4px}
 .result-top{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
 .result-bot{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}

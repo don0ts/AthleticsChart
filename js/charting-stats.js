@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 
 const INPLAY_SET = ['1B','2B','3B','HR','OUT','FC','E','DP','SAC','SACF'];
 const LOC_LABEL = {InZone:'In Zone', OutOfZone:'Out of Zone', NonComp:'Non-Competitive', IntBall:'Intentional Ball'};
-const PITCH_GROUP_LABEL = {FB:'Fastball', BB:'Breaking Ball', OS:'OffSpeed'};
+const PITCH_GROUP_LABEL = {FB:'Fastball', SL:'Slider', CB:'Curveball', CH:'Changeup', SP:'Splitter', BB:'Breaking Ball', OS:'OffSpeed'};
 const TRAJ_LABEL = {GB:'Groundball', LD:'Linedrive', FB:'Flyball', PU:'Popup'};
 
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -103,7 +103,8 @@ function detailHtml(id,evs,ygroup){
   const grp = ygroup ? ' data-ygdet="'+ygroup+'"' : '';
   let t='<table class="detail"><thead><tr>'
     +'<th class="c">#</th><th>Pitcher</th><th>Pitch Group</th><th class="c">Velo</th><th>Location</th><th class="c">Swing</th><th class="c">Contact</th><th>Contact Quality</th><th>Batted Ball</th><th class="c">Batted to</th><th class="c">PA Outcome</th></tr></thead><tbody>';
-  evs.forEach((e,i)=>{
+  evs.slice().reverse().forEach((e,ri)=>{
+    const i = evs.length-1-ri;
     t+='<tr><td class="c">'+(i+1)+'</td>'
       +'<td>'+(e.pitcher?esc(e.pitcher)+sideTag(e.throw_side):'<span class="dim">--</span>')+'</td>'
       +'<td>'+(e.pitch_group?esc(PITCH_GROUP_LABEL[e.pitch_group]||e.pitch_group):'<span class="dim">--</span>')+'</td>'
@@ -263,7 +264,8 @@ function pdetailHtml(id,evs,ygroup){
   const grp = ygroup ? ' data-ygdet="'+ygroup+'"' : '';
   let t='<table class="detail"><thead><tr>'
     +'<th class="c">#</th><th>Hitter</th><th>Pitch Group</th><th class="c">Velo</th><th>Location</th><th>Ball/Strike</th><th class="c">Swing</th><th class="c">Contact</th><th>Contact Quality</th><th>Batted Ball</th><th class="c">Batted to</th><th class="c">PA Outcome</th></tr></thead><tbody>';
-  evs.forEach((e,i)=>{
+  evs.slice().reverse().forEach((e,ri)=>{
+    const i = evs.length-1-ri;
     t+='<tr><td class="c">'+(i+1)+'</td>'
       +'<td>'+(e.player?esc(e.player)+sideTag(e.bat_side):'<span class="dim">--</span>')+'</td>'
       +'<td>'+(e.pitch_group?esc(PITCH_GROUP_LABEL[e.pitch_group]||e.pitch_group):'<span class="dim">--</span>')+'</td>'

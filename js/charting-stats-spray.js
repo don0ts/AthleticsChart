@@ -291,7 +291,7 @@ if(spv) spv.addEventListener('change', ()=>{ sprayVs=spv.value; renderSpray(); }
 
 /* ================= Pitcher Visualization tab ================= */
 let pvizMode='result', pvizPlayer='', pvizVs='';
-const PTYPE_COLOR={FB:'#e11919',BB:'#f0c828',OS:'#4ade80'};
+const PTYPE_COLOR={FB:'#e11919',SL:'#f0c828',CB:'#8fc2ff',CH:'#4ade80',SP:'#9b6bd6',BB:'#f0c828',OS:'#4ade80'};
 const PRES_COLOR={Whiff:'#e11919',CalledStrike:'#f28b8b',Ball:'#4ade80',Foul:'#f0c828',Other:'#8a93a0'};
 function pitchResult(e){
   if(e.swing==='Whiff') return 'Whiff';
@@ -358,7 +358,7 @@ function buildPvizZone(evs){
 function buildPvizLegend(evs){
   const total=evs.length; let rows='';
   if(pvizMode==='type'){
-    [['FB','Fastball'],['BB','Breaking Ball'],['OS','OffSpeed']].forEach(function(d){
+    [['FB','Fastball'],['SL','Slider'],['CB','Curveball'],['CH','Changeup'],['SP','Splitter']].forEach(function(d){
       const n=evs.filter(e=>e.pitch_group===d[0]).length; const pct= total?((n/total*100).toFixed(1)+'%'):'0%';
       rows+='<div class="lg-item"><span class="lg-sw" style="background:'+PTYPE_COLOR[d[0]]+'"></span><span class="lg-lbl">'+d[1]+'</span><span class="lg-val">'+n+' \u00b7 '+pct+'</span></div>';
     });
