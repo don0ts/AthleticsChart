@@ -201,7 +201,12 @@ function computePitcherRow(evs){
   const grouped=evs.filter(e=> e.pitch_group);
   const gN=grouped.length;
   const byG=g=> evs.filter(e=> e.pitch_group===g);
-  const fb=byG('FB'), bb=byG('BB'), os=byG('OS');
+  // Stats/percentile bucketing: the 5 pitch types fold into 3 legacy groups.
+  //   Fastball      <- FB
+  //   Breaking Ball <- SL, CB (and legacy BB)
+  //   OffSpeed      <- CH, SP (and legacy OS)
+  const byBucket=set=> evs.filter(e=> set.indexOf(e.pitch_group)>=0);
+  const fb=byBucket(['FB']), bb=byBucket(['SL','CB','BB']), os=byBucket(['CH','SP','OS']);
   const inzoneN=evs.filter(e=>e.inzone).length;
   // usage = share of grouped pitches
   const usage=arr=> fmtPct(arr.length, gN);
